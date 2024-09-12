@@ -2,4 +2,4 @@ Online Version of the Motivational Go/NoGo Task. Task code tested and run in jsp
 
 For further description of the task and the included jspsych files in the task folder see the Readme.txt file in the task folder.
 
-For details, contact hanneke.denouden@donders.ru.nl <mailto:hanneke.denouden@donders.ru.nl>
+For details, contact hanneke.denouden@donders.ru.nl
