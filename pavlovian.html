@@ -1,0 +1,723 @@
+<!doctype html>
+
+<html>
+	<head>
+		<title>Pavlovian go-nogo</title>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+		<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.1/jquery-ui.min.js"></script>
+		<script src="jspsych-5.0.3/jspsych.js"></script>
+		<script src="jspsych-5.0.3/plugins/jspsych-single-stim.js"></script>
+		<script src="jspsych-5.0.3/plugins/jspsych-text.js"></script>
+		<script src="jspsych-5.0.3/plugins/jspsych-html.js"></script>
+		<script src="jspsych-5.0.3/plugins/jspsych-survey-multi-choice.js"></script>
+		<script src="jspsych-5.0.3/plugins/jspsych-instructions.js"></script>
+		<script src="jspsych-flashborder-image.js"></script>
+		<script src="jspsych-image-confirm.js"></script>
+		<script src="shuffle.js"></script>
+		<script src="misc.js"></script>
+		<script src="instructions.js"></script>
+		<link href="jspsych-5.0.3/css/jspsych.css" rel="stylesheet" type="text/css"></link>
+		<link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
+		<link rel="stylesheet" href="mystyle.css">
+	</head>
+	<body>
+<script defer>
+/* bugs, both solved in v6.0:
+- single-stim is_html: true, // bug: still attempts to load 'stimulus'
+- timelines start with empty because otherwise the conditional_function doesn't work
+*/
+
+// constants
+var p_det_n = 5                 // number of times practice 0-3 (green go, green no-go,red go,red no-go) is done
+var p_ndet_n = 5                // number of times practice 4-7 (same gems, non-deterministic) is done
+var p_crossover = [2,1,3,2]     // trial that shows crossover for practice 4,5,6,7 (must not be >= p_ndet_n)
+var t_max_consecutive = 2       // maximum number of consecutive stimuli that are the same
+var crossover_chance = 0.25     // chance of giving a feedback that is incompliant with the response
+var t_check_chance = 0.03       // chance of an attention check after the feedback, 0.1 (10%) 1st Pilot Batch w/ RA ;  0 = Never, 0.99 (99% chance)
+var t_check_time_min = 500        // flexible attention check time lower bound
+var t_check_time_max = 1500      // Upper bounder
+var t_min_noncheck = 3         // minimum number of stimuli between attention checks
+var fail_url = "http://bbc.co.uk"
+var debug = false
+
+// Attention Checks: If 200 stimuli/block & about 5% of these trials should be followed by AC, then about every 7-9th trial should have chance of AC
+// WvH: make sure the combination of t_check_chance and t_min_noncheck is easy to comply with. Failure to find a sequence that meets these boundary condition will result in no attention checks at all.
+
+var t_cue_time = 1300              // Methylphenidate: 1300
+var t_post_cue_time = 200         // Methylphenidate: 100? , 200?
+var t_feedback_time = 500        // EEG: 1000 ;but needed because of longer recordings needed
+var t_iti_practice = 750
+var t_iti_min = 750
+var t_iti_max = 1250
+var t_flash_time = 50                               // time that the border is highlighted at key press
+
+// t0 consist of t0_blocks * t0_repeat * t0_stimulus_base.length = 200 trials
+var t0_blocks = 5
+var t0_repeat = 10                                  // SHORT VERSION: number of times all four images are shown in test 0 --> n=50: 200 trials per block // n=50: 200
+var t0_stimulus_base = ["A1", "A2", "A3", "A4"]     // shuffled
+var t0_stimulus_type = ["pun", "pun", "rew", "rew"] // shuffled independent of t0_stimulus_base
+var t0_stimulus_go = [false, true, false, true]     // shuffled along with t0_stimulus_type
+
+var t1_blocks = 5
+var t1_repeat = 10                                  // See above: Short Version// No. of times images get repeated, thus in total 200 trials/ block2
+var t1_stimulus_base = ["B1", "B2", "B3", "B4"]
+var t1_stimulus_type = ["pun", "pun", "rew", "rew"]
+var t1_stimulus_go = [false, true, false, true]
+
+var tr_images = ["image/B1.png", "image/B2.png", "image/B3.png", "image/B4.png" ]
+var tr_repeat = 4                                    // number of times all 12 (n^2-n, n=4) transfer combinations are repeated/ total: 48 trials
+
+//t1_repeat = 1; tr_repeat = 1;
+// trial numbers with attention check
+var t0_check = pickFromRange(t0_repeat * t0_stimulus_base.length,
+	Math.floor(t0_repeat * t0_stimulus_base.length * t_check_chance), t_min_noncheck)
+var t1_check = pickFromRange(t1_repeat * t1_stimulus_base.length,
+	Math.floor(t1_repeat * t1_stimulus_base.length * t_check_chance), t_min_noncheck)
+
+// prolific / mturk / sona / user entry
+var ppn = jsPsych.data.urlVariables()['ppn']
+var session = jsPsych.data.urlVariables()['session']
+var filename = "data_"+ppn+".dat"
+var filename_backup = "data_"+ppn+"_backup.dat"
+
+var empty = {
+	type: 'single-stim',
+	stimulus: '',
+	is_html: true,
+	timing_response: 1,
+}
+
+var space_check = {
+	type: "single-stim",
+	//stimulus: "Please press space bar to continue, or click <a href='"+fail_url+"'>abort</a>",
+	stimulus: "Please press the space bar to continue",
+	is_html: true, // bug: still attempts to load 'stimulus'
+	choices: [' '],
+}
+
+
+// Consent Procedure with 2 instead of 3 forms --> Study Description in Prolific not Part of Consent
+var consent_0 = {
+	type:'html',
+	url: "consent0.html",
+	cont_btn: "continue",
+}
+
+var consent_1 = {
+	type:'html',
+	url: "consent1.html",
+	cont_btn: "continue",
+	check_fn: function(){
+		if (!window.checked){
+			alert('You need to check the consent box to participate in the study.')
+			return false
+		} else {
+			return true
+		}
+		},
+}
+
+// adapted timeline so that only 2 consent forms here
+var consent = {
+	timeline: [space_check, consent_0, consent_1],
+	conditional_function: function(){ return jsPsych.data.urlVariables()['consent0']==undefined },
+	on_finish: function(data){
+		if(data.url == "consent1.html"){ // only for last trial in timeline
+			data.check = window.checked?"checked":"unchecked"
+			data.phase = "consent"
+			saveData(data)
+		}
+	},
+
+}
+
+p_correct = [] // list of results, either true for correct results or false for incorrect result
+
+var p0_trial = {
+	type: "flashborder-image",
+	stimulus: "image/Practice0_rew.png",   // diamond, go
+	stimulus_highlight: "image/Practice0_highlight.png",
+	timing_border: t_flash_time,
+	timing_response: t_cue_time + t_post_cue_time,
+	timing_post_trial: 0,
+	timing_stim: t_cue_time,
+	choices: [jsPsych.pluginAPI.convertKeyCharacterToKeyCode(' ')], // keycode 32
+	response_ends_trial: false,
+	on_finish: function(data){
+		p_correct.push(data.rt!=-1)                                   // response is correct
+	}
+}
+
+// used for the green deterministic trial feedback
+var p0_trial_feedback = {
+	type: "single-stim",
+	stimulus: function(){ return p_correct[p_correct.length-1] ? "<img src='image/rew.png'>" : "<img src='image/no_rew.png'>" },
+	is_html: true, // bug: still attempts to load 'stimulus'
+	timing_response: t_feedback_time,
+	timing_post_trial: (t_iti_min+t_iti_max)/2,
+}
+var p0_instruction_proper = {
+	type: "instructions",
+	pages: [p0_i0, p0_i1,p0_i5, p0_i6, p0_i8, p0_i9], // excluded  p0_i2, p0_i3,p0_i4 & p0_i7,  due to redundancy of instructions or combining 2 pages into 1
+	show_clickable_nav: true,
+}
+
+var p0_instructions = {
+	timeline: [empty, p0_instruction_proper],
+	conditional_function: function(){ return jsPsych.data.urlVariables()['practice0_instructions']==undefined },
+}
+
+var p0_n = p_det_n
+var p0_trials = {
+	timeline: [p0_trial, p0_trial_feedback],
+	loop_function: function(){ return --p0_n>0 },
+}
+
+var practice0 = {
+	timeline: [empty, p0_instructions], // check whether deleting [, p0_trials] from timeline excludes det practice trials
+	conditional_function: function(){ return jsPsych.data.urlVariables()['practice0']==undefined },
+}
+
+var p1_trial = {
+	type: "flashborder-image",
+	stimulus: "image/Practice1_rew.png",
+	stimulus_highlight: "image/Practice1_highlight.png",
+	timing_border: t_flash_time,
+	timing_response: t_cue_time + t_post_cue_time,
+	timing_post_trial: 0,
+	timing_stim: t_cue_time,
+	choices: [jsPsych.pluginAPI.convertKeyCharacterToKeyCode(' ')], // keycode 32
+	response_ends_trial: false,
+	on_finish: function(data){
+		p_correct.push(data.rt==-1)                                   // response is no-go which correct
+	},
+}
+
+var p1_n = p_det_n
+var p1_trials = {
+	timeline: [empty, p1_trial, p0_trial_feedback],
+	loop_function: function(){ return --p1_n>0 },
+}
+
+var practice1 = {
+	type: "text",
+	timeline: [empty, p1_i0, p1_i1, p1_trials],
+	conditional_function: function(){ return jsPsych.data.urlVariables()['practice1']==undefined }
+}
+
+var p2_trial = {
+	type: "flashborder-image",
+	stimulus: "image/Practice2_pun.png",                                // diamond, go
+	stimulus_highlight: "image/Practice2_highlight.png",
+	timing_border: t_flash_time,
+	timing_response: t_cue_time + t_post_cue_time,
+	timing_post_trial: 0,
+	timing_stim: t_cue_time,
+	choices: [jsPsych.pluginAPI.convertKeyCharacterToKeyCode(' ')], // keycode 32
+	response_ends_trial: false,
+	on_finish: function(data){
+		p_correct.push(data.rt!=-1)                                   // response is correct
+	},
+}
+
+// used for the red deterministic trial feedback
+var p2_trial_feedback = {
+	type: "single-stim",
+	stimulus: function(){ return p_correct[p_correct.length-1] ? "<img src='image/no_pun.png'>" : "<img src='image/pun.png'>" },
+	is_html: true, // bug: still attempts to load 'stimulus'
+	timing_response: t_feedback_time,
+	timing_post_trial: (t_iti_min+t_iti_max)/2,
+}
+
+var p2_n = p_det_n
+var p2_trials = {
+	timeline: [empty, p2_trial, p2_trial_feedback],
+	loop_function: function(){ return --p2_n>0 },
+}
+
+var practice2 = {
+	type: "text",
+	timeline: [empty, p2_i0, p2_i1, p2_trials],
+	conditional_function: function(){ return jsPsych.data.urlVariables()['practice2']==undefined }
+}
+
+var p3_trial = {
+	type: "flashborder-image",
+	stimulus: "image/Practice3_pun.png",                                // diamond, go
+	stimulus_highlight: "image/Practice3_highlight.png",
+	timing_border: t_flash_time,
+	timing_response: t_cue_time + t_post_cue_time,
+	timing_post_trial: 0,
+	timing_stim: t_cue_time,
+	choices: [jsPsych.pluginAPI.convertKeyCharacterToKeyCode(' ')], // keycode 32
+	response_ends_trial: false,
+	on_finish: function(data){
+		p_correct.push(data.rt==-1)                                    // response is NO GO is correct
+	},
+}
+
+var p3_n = p_det_n
+var p3_trials = {
+	timeline: [empty, p3_trial, p2_trial_feedback],
+	loop_function: function(){ return --p3_n>0 },
+}
+
+var practice3 = {
+	type: "text",
+	timeline: [empty, p3_i0, p3_i1, p3_trials, p4_i0],
+	conditional_function: function(){ return jsPsych.data.urlVariables()['practice3']==undefined }
+}
+
+// now the non-deterministic practices
+var p4_trial_feedback = {
+	type: "single-stim",
+	stimulus: function(){
+		var correct = p_correct[p_correct.length-1]
+		//var crossover = p4_n == 1 || p4_n == p_ndet_n ? false : Math.random() < crossover_chance
+		var crossover = p_crossover[0] == p_ndet_n - p4_n
+		console.log("n: "+p4_n+", correct: "+correct+", crossover: "+crossover+", feedback: "+(correct != crossover))
+		return correct != crossover  ? "<img src='image/rew.png'>" : "<img src='image/no_rew.png'>"
+	},
+	is_html: true, // bug: still attempts to load 'stimulus', solved in 6.0
+	timing_response: t_feedback_time,
+	//timing_post_trial: (t_iti_min+t_iti_max)/2,
+	timing_post_trial: t_iti_practice, // adapted to use practice specific iti (shorter)
+}
+
+var p4_n = p_ndet_n
+var p4_trials = {
+	timeline: [empty, p0_trial, p4_trial_feedback],
+	loop_function: function(){ return --p4_n>0 },
+}
+
+var p4_repeat = 0
+var p4_feedback = {
+	type: "text",
+	timeline: [empty, {text: "<p>It seems as if you had some trouble with the practice trials.</p>" +
+		"<p> Let's try this again.</p>" +
+		"<p>When you're ready to continue, press a key</p>"}],
+	conditional_function: function(){
+		if(countTrue(p_correct, p_ndet_n) <  p_ndet_n - 1){
+			p4_n = p_ndet_n // this will trigger the loop function
+			p4_repeat++
+			return true
+		}
+		return false
+		},
+}
+
+var practice4 = {
+	type: "text",
+	timeline: [empty, p4_i0, p4_trials, p4_feedback], // when det practice excluded & only prob practice active
+	//timeline: [empty, p4_i1, p4_i2, p4_trials, p4_feedback], // if regular det trials were in place
+	conditional_function: function(){ return jsPsych.data.urlVariables()['practice4']==undefined },
+	loop_function: function(){
+		console.log("loop p4_n", p4_n)
+		return p4_n
+		},
+}
+
+var p5_trial_feedback = {
+	type: "single-stim",
+	stimulus: function(){
+		var correct = p_correct[p_correct.length-1]
+		//var crossover = p5_n == 1 || p5_n == p_ndet_n ? false : Math.random() < crossover_chance
+		var crossover = p_crossover[1] == p_ndet_n - p5_n
+		console.log("n: "+p5_n+", correct: "+correct+", crossover: "+crossover+", feedback: "+(correct != crossover))
+		return correct != crossover  ? "<img src='image/rew.png'>" : "<img src='image/no_rew.png'>"
+	},
+	is_html: true, // bug: still attempts to load 'stimulus', solved in 6.0
+	timing_response: t_feedback_time,
+	//timing_post_trial: (t_iti_min+t_iti_max)/2,
+	timing_post_trial: t_iti_practice,
+}
+
+var p5_n = p_ndet_n
+var p5_trials = {
+	timeline: [empty, p1_trial, p5_trial_feedback],
+	loop_function: function(){ return --p5_n>0 },
+}
+
+var p5_repeat = 0
+var p5_feedback = {
+	type: "text",
+	timeline: [empty, {text: "<p>It seems as if you had some trouble with the practice trials.</p>" +
+		"<p> Let's try this again.</p>" +
+		"<p>When you're ready to continue, press a key</p>"}],
+	conditional_function: function(){
+		if(countTrue(p_correct, p_ndet_n) <  p_ndet_n - 1){
+			p5_n = p_ndet_n // this will trigger the loop function
+			p5_repeat++
+			return true
+		}
+		return false
+		},
+}
+
+var practice5 = {
+	type: "text",
+	timeline: [empty, p5_i0, p5_i1, p5_trials, p5_feedback],
+	conditional_function: function(){ return jsPsych.data.urlVariables()['practice5']==undefined },
+	loop_function: function(){
+		console.log("loop p5_n", p5_n)
+		return p5_n
+		},
+}
+
+var p6_trial_feedback = {
+	type: "single-stim",
+	stimulus: function(){
+		var correct = p_correct[p_correct.length-1]
+		//var crossover = p6_n == 1 || p6_n == p_ndet_n ? false : Math.random() < crossover_chance
+		var crossover = p_crossover[1] == p_ndet_n - p6_n
+
+		console.log("n: "+p6_n+", correct: "+correct+", crossover: "+crossover+", feedback: "+(correct != crossover))
+		return correct != crossover  ? "<img src='image/no_pun.png'>" : "<img src='image/pun.png'>"
+	},
+	is_html: true, // bug: still attempts to load 'stimulus', solved in 6.0
+	timing_response: t_feedback_time,
+	//timing_post_trial: (t_iti_min+t_iti_max)/2,
+	timing_post_trial: t_iti_practice,
+}
+
+var p6_n = p_ndet_n
+var p6_trials = {
+	timeline: [empty, p2_trial, p6_trial_feedback],
+	loop_function: function(){ return --p6_n>0 },
+}
+
+var p6_repeat = 0
+var p6_feedback = {
+	type: "text",
+	timeline: [empty, {text: "<p>It seems as if you had some trouble with the practice trials.</p>" +
+		"<p> Let's try this again.</p>" +
+		"<p>When you're ready to continue, press a key</p>"}],
+	conditional_function: function(){
+		if(countTrue(p_correct, p_ndet_n) <  p_ndet_n - 1){
+			p6_n = p_ndet_n // this will trigger the loop function
+			p6_repeat++
+			return true
+		}
+		return false
+		},
+}
+
+var practice6 = {
+	type: "text",
+	timeline: [empty, p6_i0, p6_i1, p6_trials, p6_feedback],
+	conditional_function: function(){ return jsPsych.data.urlVariables()['practice6']==undefined },
+	loop_function: function(){
+		console.log("loop p6_n", p6_n)
+		return p6_n
+		},
+}
+
+var p7_trial_feedback = {
+	type: "single-stim",
+	stimulus: function(){
+		var correct = p_correct[p_correct.length-1]
+		//var crossover = p7_n == 1 || p7_n == p_ndet_n ? false : Math.random() < crossover_chance
+		var crossover = p_crossover[1] == p_ndet_n - p7_n
+
+		console.log("n: "+p7_n+", correct: "+correct+", crossover: "+crossover+", feedback: "+(correct != crossover))
+		return correct != crossover  ? "<img src='image/no_pun.png'>" : "<img src='image/pun.png'>"
+	},
+	is_html: true, // bug: still attempts to load 'stimulus', solved in 6.0
+	timing_response: t_feedback_time,
+	//timing_post_trial: (t_iti_min+t_iti_max)/2,
+	timing_post_trial: t_iti_practice,
+}
+
+var p7_n = p_ndet_n
+var p7_trials = {
+	timeline: [empty, p3_trial, p7_trial_feedback],
+	loop_function: function(){ return --p7_n>0 },
+}
+
+var p7_repeat = 0
+var p7_feedback = {
+	type: "text",
+	timeline: [empty, {text: "<p>It seems as if you had some trouble with the practice trials.</p>" +
+		"<p> Let's try this again.</p>" +
+		"<p>When you're ready to continue, press a key</p>"}],
+	conditional_function: function(){
+		if(countTrue(p_correct, p_ndet_n) <  p_ndet_n - 1){
+			p7_n = p_ndet_n // this will trigger the loop function
+			p7_repeat++
+			return true
+		}
+		return false
+		},
+}
+
+var practice7 = {
+	type: "text",
+	timeline: [empty, p7_i0, p7_i1, p7_trials, p7_feedback],
+	conditional_function: function(){ return jsPsych.data.urlVariables()['practice7']==undefined },
+	loop_function: function(){
+		console.log("loop p7_n", p7_n)
+		return p7_n
+		},
+}
+
+var practice8 = {
+	type: "text",
+	timeline: [empty, p8_i0, p8_i1],
+	conditional_function: function(){ return jsPsych.data.urlVariables()['practice8']==undefined },
+}
+
+var t_correct // was the last response correct?
+var t_crossover // will the participant receive feedback that is the opposite of what is expected
+var t_type // "pun"/"rew" what was the type of the last stimulus
+var t_trial_feedback = {
+	type: "single-stim",
+	stimulus: function(){
+		console.log("correct: "+t_correct+", crossover: "+t_crossover+", feedback: "+(t_correct != t_crossover))
+		if (t_type=="rew")
+			return t_correct!=t_crossover ? "<img src='image/rew.png'>" : "<img src='image/no_rew.png'>"
+		else
+			return t_correct!=t_crossover ? "<img src='image/no_pun.png'>" : "<img src='image/pun.png'>"
+		},
+	is_html: true,
+	timing_response: t_feedback_time,
+	timing_post_trial: 0
+}
+
+// check if participant is paying attention --> ask not to press for some time and then to press
+//var did_check = []
+var t_trial_count = 0 // continues counting after test0
+var t_trial_check = {
+	type: "single-stim",
+	timeline: [{
+			stimulus: "<h1>Press the <em>spacebar</em> when the cross disappears.</h1><p> <p> <p><center style='font-size: 250%'>+</center></p>",
+			timing_response: function(){ return Math.random()*(t_check_time_max-t_check_time_min)+t_check_time_min} ,
+			on_finish: function(data){ data.phase="t_check0"; saveData(data) },
+			response_ends_trial: false,
+			timing_post_trial: 0
+		}, {
+			stimulus: "<h1>Press the <em>spacebar</em> when the cross disappears.</h1>",
+			timing_response: -1,
+			on_finish: function(data){ data.phase="t_check1"; saveData(data) },
+			timing_post_trial: (t_iti_min+t_iti_max)/2
+		}],
+	is_html: true,
+	conditional_function: function(){
+		//var check = countFalse(did_check) >= t_min_noncheck && Math.random() < t_check_chance
+		var trial_i  = t_trial_count % (t0_repeat * t0_stimulus_base.length) // since start of block
+		var block_i  = Math.floor(t_trial_count / (t0_repeat * t0_stimulus_base.length)) // 0 or 1
+		var check = block_i ? t1_check.indexOf(trial_i)!=-1 : t0_check.indexOf(trial_i)!=-1
+		//console.log(t_trial_count, block_i, trial_i, check)
+		//did_check.push(check)
+		t_trial_count++
+		return check
+		},
+}
+
+// list of trials
+var t_images = []
+var t_images_highlight = []
+var t_iti = []
+function test_trial_block(phase, stimulus_base, stimulus_type, stimulus_go, repeat){
+	var trial_list = []
+	for (var j=0; j<repeat; j++)
+	for (var i=0; i<stimulus_base.length; i++){
+		t_images[i] = "image/" + stimulus_base[i] + "_" + stimulus_type[i] + ".png"
+		t_images_highlight[i] = "image/" + stimulus_base[i] + "_highlight.png"
+		t_iti[j*stimulus_base.length+i] = Math.random()*(t_iti_max-t_iti_min)+t_iti_min
+		var trial = {
+			timeline: [
+				{
+					type:"flashborder-image",
+					stimulus: t_images[i],
+					stimulus_highlight: t_images_highlight[i],
+					timing_stim: t_cue_time,
+					timing_border: t_flash_time,
+					timing_response: t_cue_time + t_post_cue_time,
+					timing_post_trial: 0,
+					response_ends_trial: false,
+					on_finish:  (function () {
+						var ii = i // closure
+						var ij = j*stimulus_base.length+i // closure
+						var stimulus_base_i = stimulus_base[i] // because of shuffling in first line of test_trial_list
+						var stimulus_type_i = stimulus_type[i] // not necessary
+						var stimulus_go_i = stimulus_go[i] // not necessary
+						return function(data){
+							//t_correct_old = (data.rt!=-1) == stimulus_go[ii] // note that image_type and image_go correspond
+							t_correct = (data.rt!=-1) == stimulus_go_i
+							t_crossover = Math.random() < crossover_chance
+							t_type = stimulus_type_i
+							data.iti = t_iti[ij]
+							data.phase = phase
+							data.stimulus_id = stimulus_base_i
+							data.stimulus_valence = stimulus_type_i == "pun" ? 0 : 1
+							data.stimulus_go = stimulus_go_i ? 1 : 0 // true if
+							data.response_go = data.rt != -1 ? 1 : 0
+							data.response_accuracy = t_correct ? 1 : 0
+							data.feedback_validity = t_crossover ? 0 : 1
+							data.feedback_correct = (t_correct != t_crossover) ? 1 : 0
+							if (data.stimulus_valence)
+								data.outcome = data.feedback_correct ? 1 : 0
+							else
+								data.outcome = data.feedback_correct ? 0 : -1
+							saveData(data)
+							}
+						})(),
+				},
+				t_trial_feedback,
+				t_trial_check,
+				{
+					type: 'single-stim',
+					stimulus: '',
+					is_html: true,
+					timing_response: 1,
+					timing_post_trial: t_iti[j*stimulus_base.length+i],
+				},
+				]
+			}
+		trial_list.push(trial)
+	}
+	return trial_list
+}
+
+function test_trial_list(phase, stimulus_base_unshuffled, stimulus_type, stimulus_go, repeat, blocks){
+	stimulus_base = jsPsych.randomization.shuffle(stimulus_base_unshuffled)
+	let additional_data = {}
+	additional_data[phase + "_order"] = stimulus_base.join(".")
+	jsPsych.data.addProperties(additional_data)
+	var trial_list = []
+	for(let i_block=0; i_block<blocks; i_block++){
+		let l = test_trial_block(phase, stimulus_base, stimulus_type, stimulus_go, repeat)
+		// keep shuffling until the first element of the new block is different from te last element of last block
+		do{
+			l = shuffle(l, t_max_consecutive, function(a,b){return a.timeline[0].stimulus==b.timeline[0].stimulus})
+		} while(i_block > 0 && trial_list[trial_list.length-1].timeline[0].stimulus == l[0].timeline[0].stimulus)
+		// print block
+		let s = ""
+		for(i=0; i<l.length; i++)
+			s += l[i].timeline[0].stimulus.substring(7, 8)
+
+		if(debug){
+			if(i_block > 0){
+				s += " "
+				s += trial_list[trial_list.length-1].timeline[0].stimulus
+				s += l[0].timeline[0].stimulus
+			}
+			console.log(s)
+		}
+		trial_list = trial_list.concat(l)
+	}
+	return trial_list
+}
+var t0_trial_list = test_trial_list("t0_trial", t0_stimulus_base, t0_stimulus_type, t0_stimulus_go, t0_repeat, t0_blocks)
+
+
+var test0 = {
+	type: "text",
+	timeline: [t0_i0, {timeline: t0_trial_list}],
+	conditional_function: function(){ return jsPsych.data.urlVariables()['test0']==undefined }
+}
+
+var t1_trial_list = test_trial_list("t1_trial", t1_stimulus_base, t1_stimulus_type, t1_stimulus_go, t1_repeat, t1_blocks)
+
+var test1 = {
+	type: "text",
+	timeline: [t1_i0, {timeline: t1_trial_list}],
+	conditional_function: function(){ return jsPsych.data.urlVariables()['test1']==undefined }
+}
+
+var tr_instructions0 = {
+	// gonogo_instruct_pretransfer.html
+	type: "text",
+	text: "<p>Well done!</p>"+
+		"<p>We will now show you the shapes from round 2 in pairs of two.</p>"+
+		"<p>Your task is to choose every time which one you found most rewarding during the previous game.</p>"+
+		"<p>Press <strong>left arrow</strong>, if you found the left shape most rewarding. </p>"+
+		"<p>Press <strong>right arrow</strong>, if you found the right shape most rewarding. </p>"+
+		"<p>Press <strong>enter</strong> after choosing the image</p>"+
+		"<p>Try not to think about it for too long, just follow your gut feeling.<br>You will not receive feedback about your choices in this part</p>"+
+		"<p>When you're ready to continue, press a key</p>",
+}
+
+var tr_trials = {
+	type: "image-confirm",
+	timeline: [],
+}
+
+//shuffle all permutations of all combinations of two of these images (2 permutions of 6 combinations)
+var combos = shuffle(tr_images.pcombinations(2).repeat(tr_repeat), 2, anyEqual, pairwiseEqual)
+
+for(var i=0; i<combos.length; i++)
+	tr_trials.timeline.push({
+		//text: "<img width=300 src='"+combos[i][0]+"'><img width=300 src='"+combos[i][1]+"'>",
+		stimulus: combos[i][0].replace(".", "_") + "_" + combos[i][1].replace(".", "_").replace("image/", "") + ".png",
+		on_finish:  (function () {
+			var ii = i // closure
+			return function(data){
+				data.phase = "transfer"
+				data.stimulus = combos[ii].join(" + ")
+				saveData(data)
+				}
+			})(),
+		})
+
+
+var transfer = {
+	timeline: [tr_instructions0, tr_trials],
+	conditional_function: function(){ return jsPsych.data.urlVariables()['transfer']==undefined }
+}
+
+var backup = {
+	// send backup of all data so far to server
+	type: 'single-stim',
+	stimulus: '',
+	is_html: true,
+	timing_response: 1,
+	on_finish: function(){
+		var allData = jsPsych.data.getData()
+		saveData(allData, backup=true)
+	}
+}
+
+var end = {
+	type: "text",
+	text: "You have now finished the first game. Please, press a key to be forwarded to the second game",
+}
+
+
+function saveData(data, backup){
+	if(typeof backup !== "undefined")
+		backup = true
+	data['ppn'] = ppn
+	data['timestamp'] = new Date().valueOf()
+	console.log("    data: " + JSON.stringify(data))
+	$.ajax({
+		type:'post',
+		url: 'save_data_file.php',
+		data: { filename: backup ? filename_backup : filename, filedata: JSON.stringify(data) },
+		//success: function(output) {
+			//console.log("server response: " + JSON.stringify(output))
+		//}
+	})
+}
+
+$(document).mouseleave(function() {
+  saveData({
+	phase:"mouseleave",
+	progress:jsPsych.progress(),
+	totalTime:jsPsych.totalTime(),
+	})
+})
+
+// VS Comment: Pav Task excluding Transfer phase & excluding deterministic practice trials
+jsPsych.init({
+	timeline: [empty, consent, practice0,practice4, practice5, practice6, practice7, practice8, test0, test1, backup, end],
+	on_finish: function(){
+		//window.location.replace("https://survey.socsci.ru.nl/index.php/299624/lang-en?ppn="+ppn)
+		// adapted to link to reversal task
+		window.location.replace("https://exp.socsci.ru.nl/reversal/reversal.html?ppn="+ppn+"&session="+session)
+
+	}
+})
+		</script>
+	</body>
+</html>
