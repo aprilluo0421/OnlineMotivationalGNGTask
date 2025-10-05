@@ -684,38 +684,63 @@ var end = {
 }
 
 
-function saveData(data, backup){
-	if(typeof backup !== "undefined")
-		backup = true
-	data['ppn'] = ppn
-	data['timestamp'] = new Date().valueOf()
-	console.log("    data: " + JSON.stringify(data))
-	$.ajax({
-		type:'post',
-		url: 'save_data_file.php',
-		data: { filename: backup ? filename_backup : filename, filedata: JSON.stringify(data) },
-		//success: function(output) {
-			//console.log("server response: " + JSON.stringify(output))
-		//}
-	})
-}
+// function saveData(data, backup){
+// 	if(typeof backup !== "undefined")
+// 		backup = true
+// 	data['ppn'] = ppn
+// 	data['timestamp'] = new Date().valueOf()
+// 	console.log("    data: " + JSON.stringify(data))
+// 	$.ajax({
+// 		type:'post',
+// 		url: 'save_data_file.php',
+// 		data: { filename: backup ? filename_backup : filename, filedata: JSON.stringify(data) },
+// 		//success: function(output) {
+// 			//console.log("server response: " + JSON.stringify(output))
+// 		//}
+// 	})
+// }
 
-$(document).mouseleave(function() {
-  saveData({
-	phase:"mouseleave",
-	progress:jsPsych.progress(),
-	totalTime:jsPsych.totalTime(),
-	})
-})
+// $(document).mouseleave(function() {
+//   saveData({
+// 	phase:"mouseleave",
+// 	progress:jsPsych.progress(),
+// 	totalTime:jsPsych.totalTime(),
+// 	})
+// })
 
 // VS Comment: Pav Task excluding Transfer phase & excluding deterministic practice trials
 jsPsych.init({
 	timeline: [empty, consent, practice0,practice4, practice5, practice6, practice7, practice8, test0, test1, backup, end],
 	on_finish: function(){
-		//window.location.replace("https://survey.socsci.ru.nl/index.php/299624/lang-en?ppn="+ppn)
-		// adapted to link to reversal task
-		window.location.replace("https://exp.socsci.ru.nl/reversal/reversal.html?ppn="+ppn+"&session="+session)
-
+		// Get all experiment data
+		var allData = jsPsych.data.getData();
+		var csvData = allData.csv();
+		
+		// Save to DataPipe
+		fetch('https://pipe.jspsych.org/api/data/', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({
+				experimentID: 'ryQcg1Dhv6Js', // DataPipe ID
+				filename: 'data_' + ppn + '_' + Date.now() + '.csv',
+				data: csvData
+			}),
+		})
+		.then(function(response) {
+			if (response.ok) {
+				// Data saved successfully - show completion message
+				document.body.innerHTML = '<div style="text-align:center; margin-top:50px;"><h1>Thank you for participating!</h1><p>Your data has been saved successfully.</p></div>';
+			} else {
+				// Error saving data
+				document.body.innerHTML = '<div style="text-align:center; margin-top:50px;"><h1>Error</h1><p>There was an error saving your data. Please contact the researcher with participant ID: ' + ppn + '</p></div>';
+			}
+		})
+		.catch(function(error) {
+			console.error('Error:', error);
+			document.body.innerHTML = '<div style="text-align:center; margin-top:50px;"><h1>Error</h1><p>There was an error saving your data. Please contact the researcher.</p></div>';
+		});
 	}
 })
 		</script>
