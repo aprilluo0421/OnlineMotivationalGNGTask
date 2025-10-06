@@ -381,7 +381,6 @@ var jsPsych = (function() {
         }
         // checking nodes with conditional functions
         if (typeof conditional_function !== 'undefined' && current_location == 0) {
-					//console.log("check cond intern 2: ")
           if (conditional_function()) {
             // run the timeline
             return false;
@@ -1519,13 +1518,8 @@ jsPsych.pluginAPI = (function() {
           finishfn();
         }
       }
-      try { // this fails in MS Edge
-          img.src = images[i];
-      } catch (e) { 
-          console.error("problem preloading images: "+e) 
-          finishfn()
-          return
-      }
+
+      img.src = images[i];
     }
   };
 
