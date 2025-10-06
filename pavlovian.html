@@ -691,10 +691,10 @@ function saveData(data, backup){
 	
 	data['ppn'] = ppn;
 	data['timestamp'] = new Date().valueOf();
+	console.log("Data: " + JSON.stringify(data));
 	
-	// Get all data collected so far
-	var allData = jsPsych.data.getData();
-	var csvData = allData.csv();
+	// Get CSV data using jsPsych 5.0.3 syntax
+	var csvData = jsPsych.data.dataAsCSV();
 	
 	// Determine filename
 	var filename = backup ? 
@@ -708,20 +708,20 @@ function saveData(data, backup){
 			'Content-Type': 'application/json',
 		},
 		body: JSON.stringify({
-			experimentID: 'ryQcg1Dhv6Js', // Replace with your actual ID
+			experimentID: 'YOUR_DATAPIPE_EXPERIMENT_ID', // Replace with your actual ID
 			filename: filename,
 			data: csvData
 		}),
 	})
 	.then(function(response) {
 		if (response.ok) {
-			console.log("Data saved successfully");
+			console.log("Data saved successfully to DataPipe");
 		} else {
-			console.error("Error saving data");
+			console.error("Error saving data to DataPipe");
 		}
 	})
 	.catch(function(error) {
-		console.error('Error:', error);
+		console.error('DataPipe error:', error);
 	});
 }
 
