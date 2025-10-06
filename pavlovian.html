@@ -684,21 +684,46 @@ var end = {
 }
 
 
-// function saveData(data, backup){
-// 	if(typeof backup !== "undefined")
-// 		backup = true
-// 	data['ppn'] = ppn
-// 	data['timestamp'] = new Date().valueOf()
-// 	console.log("    data: " + JSON.stringify(data))
-// 	$.ajax({
-// 		type:'post',
-// 		url: 'save_data_file.php',
-// 		data: { filename: backup ? filename_backup : filename, filedata: JSON.stringify(data) },
-// 		//success: function(output) {
-// 			//console.log("server response: " + JSON.stringify(output))
-// 		//}
-// 	})
-// }
+function saveData(data, backup){
+	if(typeof backup === "undefined") {
+		backup = false;
+	}
+	
+	data['ppn'] = ppn;
+	data['timestamp'] = new Date().valueOf();
+	
+	// Get all data collected so far
+	var allData = jsPsych.data.getData();
+	var csvData = allData.csv();
+	
+	// Determine filename
+	var filename = backup ? 
+		'data_' + ppn + '_backup_' + Date.now() + '.csv' : 
+		'data_' + ppn + '_incremental.csv';
+	
+	// Send to DataPipe
+	fetch('https://pipe.jspsych.org/api/data/', {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			experimentID: 'ryQcg1Dhv6Js', // Replace with your actual ID
+			filename: filename,
+			data: csvData
+		}),
+	})
+	.then(function(response) {
+		if (response.ok) {
+			console.log("Data saved successfully");
+		} else {
+			console.error("Error saving data");
+		}
+	})
+	.catch(function(error) {
+		console.error('Error:', error);
+	});
+}
 
 // $(document).mouseleave(function() {
 //   saveData({
