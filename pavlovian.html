@@ -684,47 +684,51 @@ var end = {
 }
 
 
-function saveData(data, backup){
-	if(typeof backup === "undefined") {
-		backup = false;
-	}
+// function saveData(data, backup){
+// 	if(typeof backup === "undefined") {
+// 		backup = false;
+// 	}
 	
-	data['ppn'] = ppn;
-	data['timestamp'] = new Date().valueOf();
-	console.log("Data: " + JSON.stringify(data));
+// 	data['ppn'] = ppn;
+// 	data['timestamp'] = new Date().valueOf();
+// 	console.log("Data: " + JSON.stringify(data));
 	
-	// Get CSV data using jsPsych 5.0.3 syntax
-	var csvData = jsPsych.data.dataAsCSV();
+// 	// Get CSV data using jsPsych 5.0.3 syntax
+// 	var csvData = jsPsych.data.dataAsCSV();
 	
-	// Determine filename
-	var filename = backup ? 
-		'data_' + ppn + '_backup_' + Date.now() + '.csv' : 
-		'data_' + ppn + '_incremental.csv';
+// 	// Determine filename
+// 	var filename = backup ? 
+// 		'data_' + ppn + '_backup_' + Date.now() + '.csv' : 
+// 		'data_' + ppn + '_incremental.csv';
 	
-	// Send to DataPipe
-	fetch('https://pipe.jspsych.org/api/data/', {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-		},
-		body: JSON.stringify({
-			experimentID: 'ryQcg1Dhv6Js', // Replace with your actual ID
-			filename: filename,
-			data: csvData
-		}),
-	})
-	.then(function(response) {
-		if (response.ok) {
-			console.log("Data saved successfully to DataPipe");
-		} else {
-			console.error("Error saving data to DataPipe");
-		}
-	})
-	.catch(function(error) {
-		console.error('DataPipe error:', error);
-	});
-}
+// 	// Send to DataPipe
+// 	fetch('https://pipe.jspsych.org/api/data/', {
+// 		method: 'POST',
+// 		headers: {
+// 			'Content-Type': 'application/json',
+// 		},
+// 		body: JSON.stringify({
+// 			experimentID: 'ryQcg1Dhv6Js', // Replace with your actual ID
+// 			filename: filename,
+// 			data: csvData
+// 		}),
+// 	})
+// 	.then(function(response) {
+// 		if (response.ok) {
+// 			console.log("Data saved successfully to DataPipe");
+// 		} else {
+// 			console.error("Error saving data to DataPipe");
+// 		}
+// 	})
+// 	.catch(function(error) {
+// 		console.error('DataPipe error:', error);
+// 	});
+// }
 
+function saveData(data, backup){
+	console.log("Data will be saved at completion");
+}
+	
 // $(document).mouseleave(function() {
 //   saveData({
 // 	phase:"mouseleave",
