@@ -679,8 +679,11 @@ var backup = {
 }
 
 var end = {
-	type: "text",
-	text: "You have now finished the experiment. Please wait while we save your data...",
+	type: "single-stim",
+	stimulus: "<p>You have completed the experiment! Please wait while we save your data...</p>",
+	is_html: true,
+	timing_response: 2000,  // Auto-continue after 2 seconds
+	response_ends_trial: false,
 }
 
 
