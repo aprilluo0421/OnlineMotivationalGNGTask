@@ -742,7 +742,7 @@ function saveData(data, backup){
 
 // VS Comment: Pav Task excluding Transfer phase & excluding deterministic practice trials
 jsPsych.init({
-	timeline: [empty, consent, practice0,practice4, practice5, practice6, practice7, practice8, test0, test1, backup, end],
+	timeline: [empty, consent, practice0,practice4, practice5, practice6, practice7, practice8, test0, backup, end],
 	on_finish: function(){
 		// Get all experiment data
 		var csvData = jsPsych.data.dataAsCSV();
