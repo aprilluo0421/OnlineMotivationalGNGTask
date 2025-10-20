@@ -235,13 +235,13 @@ var p8_i1 = {
 var t0_i0 = {
 	// Instruction Reminder for ROUND 1:  slides 66-68 (new instructions)
 	type: "text",
-	text: "<p> There will be <strong>2 rounds of the game</strong>. Below are the <strong>gems for the first round</strong>, which will have a green or a red edge during the game</p>" +
+	text: "<p> Below are the <strong>gems for the round</strong>, which will have a green or a red edge during the game</p>" +
         "<table class='center'><tr><td><img width=150 src='image/A1.png'></td><td><img width=150 src='image/A2.png'></td><td><td><img width=150 src='image/A3.png'></td><td><img width=150 src='image/A4.png'></td></tr></table>"+
 				"<p> For each gem, you need to find out by trial-and-error whether to PRESS or WAIT to win (green edge) or avoid losing (red edge) points most often</p>" +
 				"<p><strong> But look out:</strong> In the real game, every now and again you will <strong>see a white cross on the screen</strong>. In this case <strong>WAIT until</strong> the <strong> cross disappears</strong> and <strong> then PRESS the spacebar as fast as possible<strong> </p> " +
         "<p> This will allow us to see whether you are still paying attention to the game.</p>" +
 				"<p> <strong>GOOD LUCK and have fun!</strong></p>" +
-				"<p>Press a key to start Round 1</p>",
+				"<p>Press a key to start</p>",
 }
 
 var t1_i0 = {
@@ -255,3 +255,4 @@ var t1_i0 = {
 		"<p> <strong>GOOD LUCK! </strong></p>"+
 		"<p>Press a key to start Round 2</p>",
 }
+
