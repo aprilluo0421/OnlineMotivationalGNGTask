@@ -762,7 +762,7 @@ jsPsych.init({
 		.then(function(response) {
 			if (response.ok) {
 				// Data saved successfully - show completion message
-				document.body.innerHTML = '<div style="text-align:center; margin-top:50px;"><h1>Thank you for participating!</h1><p>Your data has been saved successfully.</p></div>';
+				document.body.innerHTML = '<div style="text-align:center; margin-top:50px;"><h1>Thank you for participating!</h1><p>Your data has been saved successfully. Please return to the questionnaire tab.</p></div>';
 			} else {
 				// Error saving data
 				document.body.innerHTML = '<div style="text-align:center; margin-top:50px;"><h1>Error</h1><p>There was an error saving your data. Please contact the researcher with participant ID: ' + ppn + '</p></div>';
